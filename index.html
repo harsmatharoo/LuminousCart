@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuminousCart Client Dashboard</title>
+    <style>
+        /* Modern, minimal dark theme matching the Python GUI */
+        :root {
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --success: #4ade80;
+            --error: #f87171;
+            --border: #334155;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h1, h2 { margin-top: 0; color: var(--accent); }
+        h2 { font-size: 1.25rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+
+        .input-group {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        input {
+            background-color: var(--bg-main);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 0.5rem;
+            border-radius: 4px;
+            width: 100px;
+        }
+
+        button {
+            background-color: #0284c7;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+
+        button:hover { background-color: #0369a1; }
+
+        .result-box {
+            background-color: var(--bg-main);
+            padding: 1rem;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 1.1rem;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .metric {
+            background-color: var(--bg-main);
+            padding: 1rem;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .metric-value { font-size: 1.5rem; font-weight: bold; color: var(--success); }
+        .metric-label { font-size: 0.875rem; color: var(--text-muted); margin-top: 0.25rem; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>✨ LuminousCart Client Dashboard</h1>
+        
+        <!-- Live Price Checker -->
+        <div class="card">
+            <h2>Live Price Query</h2>
+            <div class="input-group">
+                <label for="productId">Product ID:</label>
+                <input type="number" id="productId" value="5" min="1">
+                <button onclick="fetchPrice()">Check Price</button>
+            </div>
+            <div class="result-box" id="priceResult">Ready to query...</div>
+        </div>
+
+        <!-- Real-Time Telemetry -->
+        <div class="card">
+            <h2>System Telemetry (Live API Polling)</h2>
+            <div class="metrics-grid">
+                <div class="metric">
+                    <div class="metric-value" id="hitRatio">0%</div>
+                    <div class="metric-label">Cache Hit Ratio</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="p99Latency">0ms</div>
+                    <div class="metric-label">p99 Tail Latency</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="activeSales">0</div>
+                    <div class="metric-label">Active Flash Sales</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="cachePolicy">LRU</div>
+                    <div class="metric-label">Eviction Policy</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api/v1';
+
+        // 1. Fetch individual product price
+        async function fetchPrice() {
+            const pid = document.getElementById('productId').value;
+            const resultBox = document.getElementById('priceResult');
+            
+            try {
+                resultBox.style.color = 'var(--text-main)';
+                resultBox.innerText = 'Fetching...';
+                
+                const response = await fetch(`${API_BASE}/products/${pid}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultBox.style.color = 'var(--success)';
+                    resultBox.innerHTML = `Price: <strong>$${data.price.toFixed(2)}</strong> <br>
+                                            Source: ${data.source} <br>
+                                            Latency: ${data.latency_ms}ms`;
+                } else {
+                    resultBox.style.color = 'var(--error)';
+                    resultBox.innerText = `Error: ${data.error}`;
+                }
+            } catch (error) {
+                resultBox.style.color = 'var(--error)';
+                resultBox.innerText = 'Connection error. Is the Python server running?';
+            }
+            
+            // Immediately update stats after a query
+            fetchTelemetry();
+        }
+
+        // 2. Poll the server for telemetry stats
+        async function fetchTelemetry() {
+            try {
+                const response = await fetch(`${API_BASE}/cache/stats`);
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                
+                document.getElementById('hitRatio').innerText = `${data.hit_ratio}%`;
+                document.getElementById('p99Latency').innerText = `${data.p99_ms}ms`;
+                document.getElementById('activeSales').innerText = data.active_flash_sales;
+                document.getElementById('cachePolicy').innerText = data.policy;
+                
+            } catch (error) {
+                console.error("Failed to fetch telemetry", error);
+            }
+        }
+
+        // Poll telemetry every 2 seconds to keep the dashboard live
+        setInterval(fetchTelemetry, 2000);
+        fetchTelemetry(); // Initial call on page load
+    </script>
+</body>
+</html>
